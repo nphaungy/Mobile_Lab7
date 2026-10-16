@@ -16,13 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory)
+    viewModel: LoginViewModel = hiltViewModel()
 ) {
     Column(
         modifier = modifier

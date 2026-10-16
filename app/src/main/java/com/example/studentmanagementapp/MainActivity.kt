@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,7 +19,10 @@ import com.example.studentmanagementapp.data.remote.TokenStorage
 import com.example.studentmanagementapp.ui.StudentScreen
 import com.example.studentmanagementapp.ui.login.LoginScreen
 import com.example.studentmanagementapp.ui.theme.StudentManagementAppTheme
+import com.example.studentmanagementapp.worker.SyncScheduler
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val tokenStorage by lazy { TokenStorage(applicationContext) }
@@ -30,6 +34,13 @@ class MainActivity : ComponentActivity() {
             StudentManagementAppTheme {
                 // เปิดแอป: มี Token -> StudentScreen / ไม่มี -> LoginScreen
                 var isLoggedIn by remember { mutableStateOf(tokenStorage.getToken() != null) }
+                LaunchedEffect(isLoggedIn) {
+                    if (isLoggedIn) {
+                        SyncScheduler.schedulePeriodicSync(applicationContext)
+                    } else {
+                        SyncScheduler.cancelPeriodicSync(applicationContext)
+                    }
+                }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     if (isLoggedIn) {

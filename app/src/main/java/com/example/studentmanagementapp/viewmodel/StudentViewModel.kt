@@ -1,27 +1,21 @@
 package com.example.studentmanagementapp.viewmodel
 
-import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.studentmanagementapp.data.local.AppDatabase
 import com.example.studentmanagementapp.data.local.StudentEntity
-import com.example.studentmanagementapp.data.remote.RetrofitClient
-import com.example.studentmanagementapp.data.remote.StudentApi
-import com.example.studentmanagementapp.data.remote.TokenStorage
 import com.example.studentmanagementapp.data.repository.StudentRepository
 import com.example.studentmanagementapp.data.repository.SyncOutcome
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
 data class StatusMessage(val text: String, val isError: Boolean)
@@ -32,7 +26,8 @@ private data class ActionResult(
     val successIsError: Boolean = false
 )
 
-class StudentViewModel(
+@HiltViewModel
+class StudentViewModel @Inject constructor(
     private val repository: StudentRepository
 ) : ViewModel() {
 
@@ -176,19 +171,6 @@ class StudentViewModel(
             SyncOutcome.SERVER_ERROR -> {
                 isOnline = true
                 message = StatusMessage("Server ตอบกลับผิดพลาด ลองใหม่อีกครั้ง", isError = true)
-            }
-        }
-    }
-
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
-                val db = AppDatabase.getDatabase(app)
-                val retrofit = RetrofitClient.getInstance(TokenStorage(app))
-                StudentViewModel(
-                    StudentRepository(db.studentDao(), retrofit.create(StudentApi::class.java))
-                )
             }
         }
     }

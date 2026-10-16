@@ -1,23 +1,21 @@
 package com.example.studentmanagementapp.ui.login
 
-import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.studentmanagementapp.data.remote.AuthApi
-import com.example.studentmanagementapp.data.remote.RetrofitClient
 import com.example.studentmanagementapp.data.remote.TokenStorage
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
+import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
-class LoginViewModel(
+@HiltViewModel
+class LoginViewModel @Inject constructor(
     private val authApi: AuthApi,
     private val tokenStorage: TokenStorage
 ) : ViewModel() {
@@ -63,17 +61,6 @@ class LoginViewModel(
                 }
             } finally {
                 isLoading = false
-            }
-        }
-    }
-
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
-                val tokenStorage = TokenStorage(app)
-                val retrofit = RetrofitClient.getInstance(tokenStorage)
-                LoginViewModel(retrofit.create(AuthApi::class.java), tokenStorage)
             }
         }
     }

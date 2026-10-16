@@ -31,22 +31,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.studentmanagementapp.data.local.StudentEntity
 import com.example.studentmanagementapp.data.local.SyncStatus
 import com.example.studentmanagementapp.viewmodel.StudentViewModel
+import com.example.studentmanagementapp.worker.SyncScheduler
 
 @Composable
 fun StudentScreen(
     modifier: Modifier = Modifier,
     onLogout: () -> Unit = {},
-    viewModel: StudentViewModel = viewModel(factory = StudentViewModel.Factory)
-) {
+    viewModel: StudentViewModel = hiltViewModel()
+)  {
     val students by viewModel.students.collectAsState()
     val visibleStudents by viewModel.filteredStudents.collectAsState()
     val pendingCount = students.count { it.syncStatus == SyncStatus.PENDING }
     val failedCount = students.count { it.syncStatus == SyncStatus.FAILED }
+    val context = LocalContext.current
 
     // Server ล่มก็ยังแสดงข้อมูลจาก Room
     LaunchedEffect(Unit) { viewModel.loadStudents() }
@@ -70,6 +73,11 @@ fun StudentScreen(
                     style = MaterialTheme.typography.headlineSmall
                 )
                 TextButton(onClick = onLogout) { Text("Logout") }
+            }
+        }
+        item {
+            Button(onClick = { SyncScheduler.syncNow(context) }) {
+                Text("Sync in Background")
             }
         }
 
