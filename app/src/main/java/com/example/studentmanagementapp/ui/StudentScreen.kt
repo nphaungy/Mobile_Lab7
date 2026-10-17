@@ -34,8 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.example.studentmanagementapp.data.local.StudentEntity
-import com.example.studentmanagementapp.data.local.SyncStatus
+import com.example.studentmanagementapp.domain.model.Student
+import com.example.studentmanagementapp.domain.model.SyncStatus
 import com.example.studentmanagementapp.viewmodel.StudentViewModel
 import com.example.studentmanagementapp.worker.SyncScheduler
 
@@ -147,7 +147,7 @@ fun StudentScreen(
             }
         }
 
-        items(visibleStudents, key = { it.localId }) { student ->
+        items(visibleStudents, key = { it.id }) { student ->
             StudentRow(
                 student = student,
                 onClick = { viewModel.selectStudent(student) },
@@ -224,7 +224,7 @@ private fun AddStudentForm(onAdd: (code: String, name: String, major: String) ->
 
 @Composable
 private fun StudentRow(
-    student: StudentEntity,
+    student: Student,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -269,13 +269,13 @@ private fun StudentRow(
 
 @Composable
 private fun EditStudentDialog(
-    student: StudentEntity,
-    onSave: (StudentEntity) -> Unit,
+    student: Student,
+    onSave: (Student) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var code by remember(student.localId) { mutableStateOf(student.studentCode) }
-    var name by remember(student.localId) { mutableStateOf(student.name) }
-    var major by remember(student.localId) { mutableStateOf(student.major) }
+    var code by remember(student.id) { mutableStateOf(student.studentCode) }
+    var name by remember(student.id) { mutableStateOf(student.name) }
+    var major by remember(student.id) { mutableStateOf(student.major) }
 
     val edited = student.copy(studentCode = code.trim(), name = name.trim(), major = major.trim())
     val canSave = code.isNotBlank() && name.isNotBlank() && major.isNotBlank() && edited != student

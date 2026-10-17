@@ -6,9 +6,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.studentmanagementapp.data.local.StudentEntity
-import com.example.studentmanagementapp.data.repository.StudentRepository
-import com.example.studentmanagementapp.data.repository.SyncOutcome
+import com.example.studentmanagementapp.domain.model.Student
+import com.example.studentmanagementapp.domain.model.SyncOutcome
+import com.example.studentmanagementapp.domain.usecase.AddStudentUseCase
+import com.example.studentmanagementapp.domain.usecase.DeleteStudentUseCase
+import com.example.studentmanagementapp.domain.usecase.GetStudentsUseCase
+import com.example.studentmanagementapp.domain.usecase.RefreshStudentsUseCase
+import com.example.studentmanagementapp.domain.usecase.SyncStudentsUseCase
+import com.example.studentmanagementapp.domain.usecase.UpdateStudentUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,11 +33,16 @@ private data class ActionResult(
 
 @HiltViewModel
 class StudentViewModel @Inject constructor(
-    private val repository: StudentRepository
+    private val getStudentsUseCase: GetStudentsUseCase,
+    private val syncStudentsUseCase: SyncStudentsUseCase,
+    private val addStudentUseCase: AddStudentUseCase,
+    private val refreshStudentsUseCase: RefreshStudentsUseCase,
+    private val updateStudentUseCase: UpdateStudentUseCase,
+    private val deleteStudentUseCase: DeleteStudentUseCase
 ) : ViewModel() {
 
-    val students: StateFlow<List<StudentEntity>> =
-        repository.observeStudents()
+    val students: StateFlow<List<Student>> =
+        getStudentsUseCase()
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000),
@@ -42,7 +52,7 @@ class StudentViewModel @Inject constructor(
     var searchQuery by mutableStateOf("")
         private set
 
-    val filteredStudents: StateFlow<List<StudentEntity>> =
+    val filteredStudents: StateFlow<List<Student>> =
         combine(students, snapshotFlow { searchQuery }) { list, query ->
             val q = query.trim()
             if (q.isEmpty()) list
@@ -63,15 +73,15 @@ class StudentViewModel @Inject constructor(
         private set
     var message by mutableStateOf<StatusMessage?>(null)
         private set
-    var selectedStudent by mutableStateOf<StudentEntity?>(null)
+    var selectedStudent by mutableStateOf<Student?>(null)
         private set
 
     // บันทึกลง Room ทันที ไม่รอ Server
     fun addStudent(code: String, name: String, major: String) {
         viewModelScope.launch {
             try {
-                repository.addStudent(
-                    StudentEntity(
+                addStudentUseCase(
+                    Student(
                         studentCode = code.trim(),
                         name = name.trim(),
                         major = major.trim()
@@ -87,11 +97,11 @@ class StudentViewModel @Inject constructor(
     // ส่ง PENDING แล้วดึงข้อมูลล่าสุด
     fun syncStudents() {
         runServerAction {
-            val push = repository.syncPending()
+            val push = syncStudentsUseCase()
             if (push.outcome != SyncOutcome.OK) {
                 return@runServerAction ActionResult(push.outcome)
             }
-            val pull = repository.refreshFromServer()
+            val pull = refreshStudentsUseCase()
             ActionResult(
                 outcome = pull,
                 successText = "Sync สำเร็จ: ส่งขึ้น Server ${push.synced} รายการ" +
@@ -102,22 +112,22 @@ class StudentViewModel @Inject constructor(
     }
 
     fun loadStudents() {
-        runServerAction { ActionResult(repository.refreshFromServer()) }
+        runServerAction { ActionResult(refreshStudentsUseCase()) }
     }
 
-    fun deleteStudent(student: StudentEntity) {
+    fun deleteStudent(student: Student) {
         runServerAction {
-            val outcome = repository.deleteStudent(student)
-            if (outcome == SyncOutcome.OK && selectedStudent?.localId == student.localId) {
+            val outcome = deleteStudentUseCase(student)
+            if (outcome == SyncOutcome.OK && selectedStudent?.id == student.id) {
                 selectedStudent = null
             }
             ActionResult(outcome)
         }
     }
 
-    fun updateStudent(student: StudentEntity) {
+    fun updateStudent(student: Student) {
         runServerAction {
-            val outcome = repository.updateStudent(student)
+            val outcome = updateStudentUseCase(student)
             if (outcome == SyncOutcome.OK) selectedStudent = null
             ActionResult(outcome)
         }
@@ -125,7 +135,7 @@ class StudentViewModel @Inject constructor(
 
     fun onSearchQueryChange(query: String) { searchQuery = query }
 
-    fun selectStudent(student: StudentEntity?) { selectedStudent = student }
+    fun selectStudent(student: Student?) { selectedStudent = student }
 
     // ทำทีละงาน ไม่ให้ซ้อนกัน
     private fun runServerAction(action: suspend () -> ActionResult) {

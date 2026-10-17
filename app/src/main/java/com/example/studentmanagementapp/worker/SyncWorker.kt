@@ -6,8 +6,8 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
-import com.example.studentmanagementapp.data.repository.StudentRepository
-import com.example.studentmanagementapp.data.repository.SyncOutcome
+import com.example.studentmanagementapp.domain.model.SyncOutcome
+import com.example.studentmanagementapp.domain.usecase.SyncStudentsUseCase
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.IOException
@@ -17,14 +17,14 @@ import kotlin.coroutines.cancellation.CancellationException
 class SyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val repository: StudentRepository
+    private val syncStudentsUseCase: SyncStudentsUseCase
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         Log.d(TAG, "doWork() เริ่มทำงาน (ครั้งที่ ${runAttemptCount + 1})")
 
         return try {
-            val push = repository.syncPending()
+            val push = syncStudentsUseCase()
 
             val result = when (push.outcome) {
                 SyncOutcome.OK -> Result.success()

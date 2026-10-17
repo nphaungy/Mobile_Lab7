@@ -7,37 +7,48 @@ import com.example.studentmanagementapp.data.local.SyncStatus
 import com.example.studentmanagementapp.data.remote.StudentApi
 import com.example.studentmanagementapp.data.remote.StudentRequest
 import com.example.studentmanagementapp.data.remote.toEntity
+import com.example.studentmanagementapp.domain.model.PushResult
+import com.example.studentmanagementapp.domain.model.Student
+import com.example.studentmanagementapp.domain.model.SyncOutcome
+import com.example.studentmanagementapp.domain.repository.StudentRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
-import javax.inject.Singleton
-enum class SyncOutcome { OK, OFFLINE, UNAUTHORIZED, SERVER_ERROR }
+import com.example.studentmanagementapp.domain.model.SyncStatus as DomainSyncStatus
 
-data class PushResult(val outcome: SyncOutcome, val synced: Int, val failed: Int)
-
-@Singleton
-class StudentRepository @Inject constructor(
+class StudentRepositoryImpl @Inject constructor(
     private val dao: StudentDao,
     private val api: StudentApi
-) {
+) : StudentRepository {
 
     // Worker (เบื้องหลัง) กับปุ่มใน UI อาจเรียกพร้อมกันได้ จึงต้องผลัดกันทำ
-    // (ได้ผลเพราะ @Singleton: ทั้งสองฝั่งได้ Repository ตัวเดียวกันจาก Hilt)
+    // (ได้ผลเพราะ @Singleton ใน RepositoryModule: ทั้งสองฝั่งได้ instance เดียวกัน)
     private val syncMutex = Mutex()
 
-    fun observeStudents(): Flow<List<StudentEntity>> {
+    override fun observeStudents(): Flow<List<Student>> {
         return dao.observeStudents()
+            .map { entities ->
+                entities.map { entity -> entity.toDomain() }
+            }
     }
 
-    suspend fun addStudent(student: StudentEntity) {
-        dao.insertStudent(student.copy(syncStatus = SyncStatus.PENDING))
+    override suspend fun addStudent(student: Student) {
+        dao.insertStudent(
+            StudentEntity(
+                studentCode = student.studentCode,
+                name = student.name,
+                major = student.major,
+                syncStatus = SyncStatus.PENDING
+            )
+        )
     }
 
     // ---------- ส่งรายการ PENDING ขึ้น Server ----------
-    suspend fun syncPending(): PushResult = syncMutex.withLock {
+    override suspend fun syncPending(): PushResult = syncMutex.withLock {
         val pending = dao.getPendingStudents()
         Log.d(TAG, "syncPending: พบรายการ PENDING ${pending.size} รายการ")
 
@@ -85,7 +96,7 @@ class StudentRepository @Inject constructor(
     }
 
     // ---------- ดึงจาก Server มา merge เข้า Room ----------
-    suspend fun refreshFromServer(): SyncOutcome = syncMutex.withLock {
+    override suspend fun refreshFromServer(): SyncOutcome = syncMutex.withLock {
         callServer {
             val remote = api.getStudents()
             val now = System.currentTimeMillis()
@@ -111,8 +122,8 @@ class StudentRepository @Inject constructor(
     }
 
     // ---------- ลบ ----------
-    suspend fun deleteStudent(student: StudentEntity): SyncOutcome = syncMutex.withLock {
-        val current = dao.getByLocalId(student.localId)
+    override suspend fun deleteStudent(student: Student): SyncOutcome = syncMutex.withLock {
+        val current = dao.getByLocalId(student.id)
         val serverId = current?.serverId
         when {
             current == null -> SyncOutcome.OK
@@ -128,9 +139,9 @@ class StudentRepository @Inject constructor(
     }
 
     // ---------- แก้ไข ----------
-    suspend fun updateStudent(student: StudentEntity): SyncOutcome = syncMutex.withLock {
+    override suspend fun updateStudent(student: Student): SyncOutcome = syncMutex.withLock {
         // อ่านแถวล่าสุดจาก Room เสมอ กัน object เก่าที่ UI ถืออยู่ทับ serverId/สถานะใหม่
-        val current = dao.getByLocalId(student.localId)
+        val current = dao.getByLocalId(student.id)
         if (current == null) {
             SyncOutcome.OK
         } else {
@@ -167,7 +178,17 @@ class StudentRepository @Inject constructor(
         }
     }
 
+    // id = localId เพราะไม่ซ้ำกันเสมอ (serverId ?: localId อาจชนกันระหว่างแถวที่ sync แล้วกับยังไม่ sync)
+    private fun StudentEntity.toDomain() = Student(
+        id = localId,
+        serverId = serverId,
+        studentCode = studentCode,
+        name = name,
+        major = major,
+        syncStatus = DomainSyncStatus.valueOf(syncStatus)
+    )
+
     private companion object {
-        const val TAG = "StudentRepository"
+        const val TAG = "StudentRepositoryImpl"
     }
 }
